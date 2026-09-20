@@ -838,9 +838,14 @@ BackupResult create_backup_archive(const BackupRequest &request) {
     return error_result(archive_path, errno == EEXIST ? "archive already exists"
                                                       : "could not create archive file");
   }
-  FILE *zip = fdopen(descriptor, "wb");
+  // fdopen cannot wrap a file descriptor on the Vita: VitaSDK's fcntl answers F_GETFL only for
+  // sockets and fails with ENOTSUP for everything else, and newlib's fdopen gives up when that
+  // call fails. Host libcs have no such limit, which is why the tests never saw it. Closing the
+  // exclusive descriptor and reopening through fopen keeps the guarantee this dance exists for -
+  // the O_EXCL create above still proves the archive did not already exist.
+  close(descriptor);
+  FILE *zip = std::fopen(archive_path.c_str(), "wb");
   if (!zip) {
-    close(descriptor);
     std::remove(archive_path.c_str());
     return error_result(archive_path, "could not create archive stream");
   }
