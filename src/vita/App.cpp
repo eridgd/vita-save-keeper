@@ -2171,6 +2171,15 @@ void App::handle_restore() {
     set_status(StatusKind::Info, "Restore canceled.");
     return;
   }
+  // A live save that could not be read whole has no trustworthy signature: neither the
+  // "already backed up" comparison nor a snapshot built from a partial walk can be believed, and
+  // restoring anyway would clear the folder with no net under it. Refuse, exactly as
+  // perform_savedata_delete does. A backups-only row has no live save to lose, so it goes on.
+  if (!signature_ok && !save.backups_only) {
+    restore_confirmation_pending_ = false;
+    set_status(StatusKind::Error, "Could not read the current save - nothing was restored.");
+    return;
+  }
   if (signature_ok && !current_entries.empty()) {
     const bool already_backed_up =
         !matching_backup_name(current_entries, save.id, local_backups_).empty();
