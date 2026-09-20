@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 #include <utility>
 
 namespace vsm::vita {
@@ -22,6 +23,13 @@ namespace {
 // VPK; keeping verification on protects the long-lived OAuth refresh token.
 constexpr const char *kCaBundlePath = "app0:sce_sys/resources/cacert.pem";
 constexpr int kNetMemorySize = 1024 * 1024;
+// Ceiling on a response buffered whole in RAM. Every such response is metadata - token replies,
+// Drive file listings, backup-settings.json - and the largest of those is a few tens of KB, so
+// this is orders of magnitude of headroom. Without a ceiling the bound is whatever sits in the
+// user's Drive, on a console with a couple hundred MB: a large file fetched with alt=media used
+// to grow this string until the allocation failed. Archives never come through here; they stream
+// to disk in download_file.
+constexpr std::size_t kMaxResponseBodyBytes = 8ULL * 1024ULL * 1024ULL;
 // Progress frames are throttled so slow vita2d redraws do not starve the actual transfer.
 constexpr SceUInt64 kProgressFrameIntervalUs = 100 * 1000;
 
@@ -44,7 +52,19 @@ SceUInt64 g_last_progress_us = 0;
 std::size_t append_response_body(char *ptr, std::size_t size, std::size_t nmemb, void *userdata) {
   const std::size_t byte_count = size * nmemb;
   auto *body = static_cast<std::string *>(userdata);
-  body->append(ptr, byte_count);
+  if (body->size() + byte_count > kMaxResponseBodyBytes) {
+    // A short return is how a write callback reports failure; curl turns it into
+    // CURLE_WRITE_ERROR and the request fails cleanly.
+    return 0;
+  }
+  // append() throwing here would unwind through libcurl's C frames, which is undefined, and with
+  // no handler above it the process dies. The same bad_alloc already took the app down once from
+  // the upload path (see App::upload_local_backup). Turn it into the same clean write failure.
+  try {
+    body->append(ptr, byte_count);
+  } catch (const std::bad_alloc &) {
+    return 0;
+  }
   return byte_count;
 }
 
@@ -105,6 +125,16 @@ void configure_common(CURL *curl, curl_slist *headers, char *error_buffer, long 
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  // Every request here carries the OAuth token in a caller-supplied Authorization header, and
+  // curl replays those verbatim to whatever a redirect points at - it only strips auth it
+  // generated itself. Bounding the chain and pinning it to https keeps the token on verified
+  // TLS instead of following a Location: into cleartext.
+  curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+#if LIBCURL_VERSION_NUM >= 0x075500 // 7.85.0 replaced the protocol bitmask with a string list.
+  curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
+#else
+  curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+#endif
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 20L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_seconds);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
