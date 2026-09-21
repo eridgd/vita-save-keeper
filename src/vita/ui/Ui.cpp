@@ -1619,8 +1619,8 @@ void Ui::draw_title_grid(const UiState &state) {
   vita2d_draw_rectangle(0, 52, 512, 456, kColorPanel);
   vita2d_draw_line(512, 52, 512, 508, RGBA8(255, 255, 255, 20));
 
-  // Category tabs: L/R cycles Vita / Homebrew / PSP. Tabs with zero saves stay dimmed and are
-  // skipped by the input handler.
+  // Category tabs: L/R cycles Vita / Homebrew / PSP / PSX. Tabs with zero saves stay dimmed and
+  // are skipped by the input handler.
   int tab_x = 40;
   for (int i = 0; i < kSaveCategoryCount; ++i) {
     const SaveCategory category = static_cast<SaveCategory>(i);
@@ -1783,9 +1783,12 @@ void Ui::draw_backup_panel(const UiState &state) {
   // Selected-save details live here, in one place, above its backup menu. Truncation is by
   // measured pixel width so long titles use the full pane.
   const std::string title = fit_text(kTextSizeNormal, save->display_name, 408);
-  const char *platform_text = classify_save(*save) == SaveCategory::Homebrew
+  const SaveCategory save_category = classify_save(*save);
+  const char *platform_text = save_category == SaveCategory::Homebrew
                                   ? "Homebrew"
-                                  : platform_label(save->platform);
+                                  : save_category == SaveCategory::Psx
+                                        ? "PSX"
+                                        : platform_label(save->platform);
   const std::string details = fit_text(
       kTextSizeSmall, title_id_label(*save) + "  |  " + platform_text + " save", 408);
   // Baseline 84 matches the tab row in the left pane so the top lines read as one row.

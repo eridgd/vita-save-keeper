@@ -34,6 +34,20 @@ std::string first_existing_file(const std::vector<std::string> &paths) {
   return {};
 }
 
+// Adrenaline's POPS (PS1) emulator keeps its save in the very same PSP/SAVEDATA/<id> layout as a
+// native PSP game, but alongside a virtual memory card image - SCEVMC0.VMP for slot 1, and
+// SCEVMC1.VMP for a game that uses a second slot. That file is the only thing on disk telling a
+// PS1 save apart from a PSP one.
+bool save_directory_has_pops_memory_card(const std::string &save_path) {
+  return !first_existing_file({
+              join_path(save_path, "SCEVMC0.VMP"),
+              join_path(save_path, "scevmc0.vmp"),
+              join_path(save_path, "SCEVMC1.VMP"),
+              join_path(save_path, "scevmc1.vmp"),
+          })
+              .empty();
+}
+
 std::vector<std::string> list_direct_child_directories(const std::string &root_path) {
   std::vector<std::string> directories;
   // A missing root simply lists as empty: save roots vary by model, storage setup, and
@@ -264,6 +278,9 @@ std::vector<SaveRecord> scan_save_roots(
     save.fingerprint = compute_save_fingerprint(save.path);
     save.save_time_requires_mount =
         save.platform != SavePlatform::Psp && save_directory_has_pfs_metadata(save.path);
+    if (save.platform == SavePlatform::Psp) {
+      save.is_psx = save_directory_has_pops_memory_card(save.path);
+    }
     const SaveIndexEntry *cached = nullptr;
     if (index) {
       const auto found = index->entries.find(save.id);

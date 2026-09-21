@@ -63,6 +63,12 @@ struct SaveRecord {
   // while the save's time is unknown; recomputed by refresh_drive_newer_marks wherever either
   // side moves. Costs no IO - both times are already in memory.
   bool drive_newer{};
+  // Meaningful only for platform == Psp: true when the save folder is actually a POPS (PS1)
+  // save rather than a native PSP one - Adrenaline stores both the same way, one folder per
+  // game under PSP/SAVEDATA, but a POPS folder also holds a SCEVMC0.VMP virtual memory card.
+  // Decided at scan time from the live folder, or from a backup archive's own contents when the
+  // folder is gone, so classify_save can stay a pure function of already-known fields.
+  bool is_psx{};
 };
 
 } // namespace vsm

@@ -10,9 +10,10 @@ enum class SaveCategory {
   VitaGame,
   Homebrew,
   Psp,
+  Psx,
 };
 
-constexpr int kSaveCategoryCount = 3;
+constexpr int kSaveCategoryCount = 4;
 
 SaveCategory classify_save(const SaveRecord &save);
 const char *save_category_label(SaveCategory category);

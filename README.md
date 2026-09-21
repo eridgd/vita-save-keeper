@@ -20,7 +20,8 @@ more than one Vita (or a PS TV), your saves follow you.
   on Google Drive, or both
 - lets you label a backup ("before boss", "100% save") with the on-screen keyboard, so you can
   tell backups apart. The label follows the backup to Drive
-- shows your games in a grid with real titles and icons, grouped into Vita / Homebrew / PSP tabs
+- shows your games in a grid with real titles and icons, grouped into Vita / Homebrew / PSP / PSX
+  tabs (PSX covers PS1 games played through Adrenaline's built-in POPS emulator)
 - backs up homebrew saves in `ux0:data` - pick an app's savedata paths (folders or single
   files) yourself, and Save Keeper ships a built-in config handling popular homebrews (currently
   only RetroArch, more can be added)
@@ -72,7 +73,7 @@ Follow the [Google Drive setup guide](docs/google-drive-setup.md).
 | Button | Action |
 | --- | --- |
 | D-Pad / Left stick | move through the game grid |
-| L / R | switch between the Vita / Homebrew / PSP tabs |
+| L / R | switch between the Vita / Homebrew / PSP / PSX tabs |
 | Right stick | move through the backup list |
 | Cross | create a backup (on "New Backup") or restore the selected one (press twice) |
 | Select | \- upload a local-only backup, or download a Drive-only one<br>\- hold to back up & upload the tab |

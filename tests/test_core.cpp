@@ -805,6 +805,7 @@ void test_save_scanner_lists_direct_child_save_directories() {
   std::filesystem::create_directories(base / "vita" / "PCSE99999");
   std::filesystem::create_directories(base / "vita" / "PCSE00120" / "sce_sys");
   std::filesystem::create_directories(base / "psp" / "ULUS12345");
+  std::filesystem::create_directories(base / "psp" / "SLUS00001");
   std::ofstream(base / "vita" / "BHBB00001" / "data.bin", std::ios::binary)
       << "homebrew save";
   write_binary_file(base / "vita" / "PCSE00120" / "sce_sys" / "param.sfo",
@@ -820,6 +821,10 @@ void test_save_scanner_lists_direct_child_save_directories() {
   write_binary_file(base / "psp" / "ULUS12345" / "PARAM.SFO",
                     build_sfo_with_strings({{"TITLE", "PSP Save"}}));
   std::ofstream(base / "psp" / "ULUS12345" / "ICON0.PNG", std::ios::binary) << "png";
+  write_binary_file(base / "psp" / "SLUS00001" / "PARAM.SFO",
+                    build_sfo_with_strings({{"TITLE", "PSX Save"}}));
+  std::ofstream(base / "psp" / "SLUS00001" / "ICON0.PNG", std::ios::binary) << "png";
+  std::ofstream(base / "psp" / "SLUS00001" / "SCEVMC0.VMP", std::ios::binary) << "vmc";
   const std::time_t vita_saved_at = 1700001234;
   const std::time_t homebrew_saved_at = 1700002345;
   const std::time_t psp_saved_at = 1700003456;
@@ -865,7 +870,7 @@ void test_save_scanner_lists_direct_child_save_directories() {
       },
       resolver);
 
-  EXPECT_EQ(saves.size(), static_cast<std::size_t>(5));
+  EXPECT_EQ(saves.size(), static_cast<std::size_t>(6));
   EXPECT_TRUE(saves[0].platform == vsm::SavePlatform::Vita);
   EXPECT_EQ(saves[0].id, "BHBB00001");
   EXPECT_TRUE(saves[0].save_time_known);
@@ -894,16 +899,24 @@ void test_save_scanner_lists_direct_child_save_directories() {
   EXPECT_EQ(saves[3].display_name, "PCSE99999");
   EXPECT_TRUE(!saves[3].save_time_known);
 
+  // "SLUS00001" sorts before "ULUS12345" among the psp root's direct children.
   EXPECT_TRUE(saves[4].platform == vsm::SavePlatform::Psp);
-  EXPECT_EQ(saves[4].id, "ULUS12345");
-  EXPECT_EQ(saves[4].display_name, "PSP Save");
-  EXPECT_EQ(saves[4].icon_path, (base / "psp" / "ULUS12345" / "ICON0.PNG").string());
-  EXPECT_TRUE(saves[4].save_time_known);
-  EXPECT_EQ(static_cast<std::size_t>(saves[4].saved_at_epoch),
-            static_cast<std::size_t>(psp_saved_at));
-  EXPECT_EQ(vsm::format_save_datetime(saves[4].saved_at), "2023-11-14T23:10:56");
+  EXPECT_EQ(saves[4].id, "SLUS00001");
+  EXPECT_EQ(saves[4].display_name, "PSX Save");
+  EXPECT_TRUE(saves[4].is_psx);
+  EXPECT_TRUE(vsm::classify_save(saves[4]) == vsm::SaveCategory::Psx);
 
-  EXPECT_EQ(resolved_paths.size(), static_cast<std::size_t>(4));
+  EXPECT_TRUE(saves[5].platform == vsm::SavePlatform::Psp);
+  EXPECT_EQ(saves[5].id, "ULUS12345");
+  EXPECT_EQ(saves[5].display_name, "PSP Save");
+  EXPECT_EQ(saves[5].icon_path, (base / "psp" / "ULUS12345" / "ICON0.PNG").string());
+  EXPECT_TRUE(!saves[5].is_psx);
+  EXPECT_TRUE(saves[5].save_time_known);
+  EXPECT_EQ(static_cast<std::size_t>(saves[5].saved_at_epoch),
+            static_cast<std::size_t>(psp_saved_at));
+  EXPECT_EQ(vsm::format_save_datetime(saves[5].saved_at), "2023-11-14T23:10:56");
+
+  EXPECT_EQ(resolved_paths.size(), static_cast<std::size_t>(5));
   EXPECT_TRUE(std::find(resolved_paths.begin(), resolved_paths.end(), saves[2].path) ==
               resolved_paths.end());
   EXPECT_EQ(scan_progress, saves.size());
@@ -2561,6 +2574,14 @@ void test_save_category_classification() {
   psp.platform = vsm::SavePlatform::Psp;
   psp.id = "UCES00002000";
   EXPECT_TRUE(vsm::classify_save(psp) == vsm::SaveCategory::Psp);
+
+  // Adrenaline's POPS emulator stores a PS1 save the same way as a native PSP one; only
+  // is_psx (decided from the folder's SCEVMC0.VMP at scan time) tells them apart.
+  vsm::SaveRecord psx;
+  psx.platform = vsm::SavePlatform::Psp;
+  psx.id = "SLUS00001";
+  psx.is_psx = true;
+  EXPECT_TRUE(vsm::classify_save(psx) == vsm::SaveCategory::Psx);
 }
 
 void test_save_sort_modes_order_saves() {

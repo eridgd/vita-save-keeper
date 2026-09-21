@@ -55,6 +55,15 @@ struct BackupUploadResult {
   bool metadata_warning{};
 };
 
+// What a backups-only candidate's savedata turns out to be, decided from its own backup archive
+// (or, lacking one, the id's shape). Psx is a Psp-platform save under the hood - see
+// SaveRecord::is_psx - this just carries the answer out of the one place that can tell.
+enum class BackupSaveKind {
+  Vita,
+  Psp,
+  Psx,
+};
+
 class App {
 public:
   int run();
@@ -231,12 +240,14 @@ private:
   // coverage, and a folder deleted from the Drive web UI takes its row with it (unless local
   // backups still argue for one).
   void synthesize_backups_only_saves();
-  // Whether a backups-only candidate is a PSP save. Definitive when a local archive exists - a
-  // PSP save carries PARAM.SFO at the archive root while a Vita save keeps everything under
-  // sce_sys/ - and falls back to the id's shape (a PSP game id prefix plus a save-name tail) for
-  // a candidate that lives only on Drive. Reading a central directory decompresses nothing, and
-  // only unmatched folders ever get here.
-  bool backup_is_psp_save(const std::string &save_id) const;
+  // Vita, Psp or Psx: what platform a backups-only candidate's savedata belongs to. Definitive
+  // when a local archive exists - a PSP save carries PARAM.SFO at the archive root while a Vita
+  // save keeps everything under sce_sys/, and a POPS (PS1) save also carries a SCEVMC0.VMP
+  // virtual memory card - and falls back to the id's shape (a PSP game id prefix plus a
+  // save-name tail) for a candidate that lives only on Drive, where PSX cannot be told apart
+  // from PSP. Reading a central directory decompresses nothing, and only unmatched folders ever
+  // get here.
+  BackupSaveKind backup_save_kind(const std::string &save_id) const;
   // Where a PSP save is restored: the first pspemu root that already holds savedata, so a card
   // configured for uma0 restores beside its other saves; ux0 when none is populated yet.
   std::string psp_restore_root() const;

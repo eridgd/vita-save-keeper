@@ -38,7 +38,10 @@ bool is_utility_save_id(const std::string &id) { return id == "PCSI00011"; }
 
 SaveCategory classify_save(const SaveRecord &save) {
   if (save.platform == SavePlatform::Psp) {
-    return SaveCategory::Psp;
+    // Adrenaline stores a POPS (PS1) save the same way as a native PSP one - one folder per
+    // game under PSP/SAVEDATA - so the platform alone cannot tell them apart. is_psx is decided
+    // once, at scan or backup-restore time, from the folder or archive contents.
+    return save.is_psx ? SaveCategory::Psx : SaveCategory::Psp;
   }
   // Game-card saves always belong to a retail game even when the cartridge title id is unknown.
   if (save.platform == SavePlatform::GameCard) {
@@ -90,6 +93,8 @@ const char *save_category_label(SaveCategory category) {
     return "Homebrew";
   case SaveCategory::Psp:
     return "PSP";
+  case SaveCategory::Psx:
+    return "PSX";
   default:
     return "Saves";
   }

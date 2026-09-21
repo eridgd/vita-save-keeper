@@ -2886,7 +2886,7 @@ void App::queue_drive_newer_candidates() {
   }
 }
 
-bool App::backup_is_psp_save(const std::string &save_id) const {
+BackupSaveKind App::backup_save_kind(const std::string &save_id) const {
   // The archive itself is the authority when the card holds one. Newest first; the first archive
   // that reads decides, since a save's layout never changes between its own backups.
   std::vector<std::string> local_names = scan_local_backup_names(kBackupRoot, save_id);
@@ -2897,20 +2897,32 @@ bool App::backup_is_psp_save(const std::string &save_id) const {
                                         &entries)) {
       continue;
     }
+    bool has_param_sfo = false;
+    bool has_memory_card = false;
     for (const ArchiveEntryInfo &entry : entries) {
-      // A Vita save's slot metadata lives under sce_sys/; a PSP save keeps PARAM.SFO at the root.
+      // A Vita save's slot metadata lives under sce_sys/; a PSP save keeps PARAM.SFO at the
+      // root, and a POPS (PS1) save also carries a SCEVMC0.VMP/SCEVMC1.VMP virtual memory card
+      // there. sce_sys/ is decisive on its own - a Vita save never has the other two.
       if (entry.path.compare(0, 8, "sce_sys/") == 0) {
-        return false;
+        return BackupSaveKind::Vita;
       }
       if (entry.path == "PARAM.SFO" || entry.path == "param.sfo") {
-        return true;
+        has_param_sfo = true;
+      }
+      if (entry.path == "SCEVMC0.VMP" || entry.path == "scevmc0.vmp" ||
+          entry.path == "SCEVMC1.VMP" || entry.path == "scevmc1.vmp") {
+        has_memory_card = true;
       }
     }
-    return false;
+    if (has_memory_card) {
+      return BackupSaveKind::Psx;
+    }
+    return has_param_sfo ? BackupSaveKind::Psp : BackupSaveKind::Vita;
   }
 
-  // Drive-only: fall back to the id's shape.
-  return save_id_looks_like_psp(save_id);
+  // Drive-only: fall back to the id's shape. PSX cannot be told apart from PSP this way, so it
+  // is left to reclassify itself once a local archive (or the live save) exists again.
+  return save_id_looks_like_psp(save_id) ? BackupSaveKind::Psp : BackupSaveKind::Vita;
 }
 
 std::string App::psp_restore_root() const {
@@ -3040,9 +3052,11 @@ void App::synthesize_backups_only_saves() {
     // A PSP save is never in the Vita app database, so the app-db gate below would drop it: its
     // platform is settled here instead, from its newest local archive's own layout when there is
     // one, otherwise from the id's shape.
-    if (backup_is_psp_save(key)) {
+    const BackupSaveKind kind = backup_save_kind(key);
+    if (kind != BackupSaveKind::Vita) {
       candidate_is_psp.push_back(true);
       record.platform = SavePlatform::Psp;
+      record.is_psx = kind == BackupSaveKind::Psx;
       record.path = join_path(psp_restore_root(), key);
       // No app database and no ICON0.PNG (it lived inside the deleted folder): the title comes
       // from the Drive folder name, and the tile falls back to its placeholder art.
